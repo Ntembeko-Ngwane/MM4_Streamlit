@@ -24,6 +24,8 @@
 # Streamlit dependencies
 import pandas as pd
 import numpy as np
+import numpy as np
+import pandas as pd
 import streamlit as st
 import joblib,os
 import pickle
@@ -32,41 +34,25 @@ from sklearn.metrics.pairwise import cosine_similarity
 #from surprise import NormalPredictor
 
 #from sklearn.feature_extraction.text import TfidfVectorizer
+
 #import surprise 
 #from surprise import SVD
 
 # Load preprocessed data
 anime_data = pd.read_csv('Data/anime.csv') 
 
-#with open('Models/baseline_model.pkl', 'rb') as file:
-    #model = pickle.load(file)
 
-# Vectorizer
-#news_vectorizer = open("streamlit/tfidfvect.pkl","rb")
-#test_cv = joblib.load(news_vectorizer) # loading your vectorizer from the pkl file
 
-#model_folder = 'Models'
+model_folder = 'Models'
 
 # Load pickled collaborative filtering model
-#collaborative_model = os.path.join(model_folder, 'SVD_model.pkl')
-#try:
-   # with open(collaborative_model, 'rb') as f:
-       # collaborative_model = pickle.load(f)
-#except FileNotFoundError:
-   # st.error(f"Collaborative model file not found at {collaborative_model}")
-    #collaborative_model = None
-#except Exception as e:
-   # st.error(f"An error occurred while loading the collaborative model: {e}")
-    #collaborative_model = None
+collaborative_model = os.path.join(model_folder, 'SVD_model.pkl')
+
+
     
 # Load content-based model components (e.g., TF-IDF matrix)
-#tfidf_matrix = os.path.join(model_folder, 'NormalPredictor_model.pkl')
-#try:
-    #with open(tfidf_matrix_path, 'rb') as f:
-        #tfidf_matrix = pickle.load(f)
-#except FileNotFoundError:
-    #st.error(f"TF-IDF model file not found at {tfidf_matrix_path}")
-    #tfidf_matrix = None
+tfidf_matrix = os.path.join(model_folder, 'baseline_model.pkl')
+ 
     
  # Path to your anime dataset
 #ratings_data = pd.read_csv('Data/train.csv')  # Path to your ratings dataset
@@ -99,6 +85,37 @@ def get_genre_based_recommendations(favorite_animes, anime_data):
     # Return the most similar animes
     return anime_data.iloc[similar_indices]
 
+def get_collaborative_recommendations(user_ratings, collaborative_model, anime_data):
+    try:
+        # Convert user ratings into a suitable format (e.g., a sparse matrix or dataframe)
+        user_ratings_matrix = create_user_ratings_matrix(user_ratings, anime_data)
+        
+        # Predict ratings for all animes the user hasn't rated
+        predicted_ratings = collaborative_model.predict(user_ratings_matrix)
+
+        # Convert predictions to a DataFrame and merge with anime data
+        predictions_df = pd.DataFrame(predicted_ratings, columns=['anime_id', 'predicted_rating'])
+        recommendations = pd.merge(predictions_df, anime_data, on='anime_id')
+
+        # Sort by predicted rating and return the top N recommendations
+        recommendations = recommendations.sort_values(by='predicted_rating', ascending=False).head(10)
+        
+        return recommendations
+
+    except Exception as e:
+        st.error(f"An error occurred during recommendation: {e}")
+        return pd.DataFrame()
+
+def create_user_ratings_matrix(user_ratings, anime_data):
+    # Ensure that the user_ratings_matrix matches the input format expected by the model
+    anime_ids = [anime_data.loc[anime_data['name'] == anime_name, 'anime_id'].values[0] for anime_name in user_ratings.keys()]
+    ratings = list(user_ratings.values())
+    user_ratings_matrix = pd.DataFrame({
+        'anime_id': anime_ids,
+        'user_rating': ratings
+    })
+    return user_ratings_matrix
+
 def display_eda_page():
 			st.title("Exploratory Data Analysis")
 			st.markdown("""
@@ -125,7 +142,7 @@ def main():
 	# these are static across all pages
 	st.markdown(
      	"""
-    <h1 style="color:#FF5733;">Welcome to Amime Recommender</h1>
+    <h1 style="color:#FF5733;">Welcome to AniMate App</h1>
 	<p>Discover Your Next Favorite Anime!</p>
 	<hr>
 		""", unsafe_allow_html=True,)
@@ -241,7 +258,7 @@ def main():
 		display_team_member(
 			 name="Judith Kabongo",
 			role="Slide Deck Manager",
-			description="Judith brings a wealth of experience in project management, ensuring that our team is always focused and productive.",
+			description="Judith is responsible of crafting and organizing the visual and textual content of presentations. Her work involves designing clear, concise, and visually appealing slides that effectively communicated the project's goals, progress, and outcomes.",
 			image_path="Images/img4.jpeg",  # Ensure this path is correct
 			linkedin_url="https://www.linkedin.com/in/judithkabongo")
   
@@ -254,8 +271,8 @@ def main():
 	
 		display_team_member(
 			name="Tselani Moeti",
-			role="Streamlit Manager",
-			description="Tselani works closely with Ntembeko to bring our Streamlit applications to life, focusing on performance and usability.",
+			role="Modeling Specialist",
+			description="Tselani is responsible of designing, developing, and optimizing predictive models. Her work involves selecting appropriate algorithms, fine-tuning model parameters, and validating model performance.",
 			image_path="Images/img3.jpeg",  # Ensure this path is correct
 			linkedin_url="https://www.linkedin.com/in/tselanimoeti")
   
@@ -292,27 +309,7 @@ def main():
 		if st.button("👎 Dislike"):
 			st.write("We appreciate your feedback!")
         
-	
-	# Building out the predication page
-	#if selection == "Prediction":
-		#st.info("Prediction with ML Models")
-		# Creating a text box for user input
-		#news_text = st.text_area("Enter Text","Type Here")
 
-		#if st.button("Classify"):
-			# Transforming user input with vectorizer
-			#vect_text = test_cv.transform([news_text]).toarray()
-			# Load your .pkl file with the model of your choice + make predictions
-			# Try loading in multiple models to give the user a choice
-			#predictor = joblib.load(open(os.path.join("streamlit/Logistic_regression.pkl"),"rb"))
-			#prediction = predictor.predict(vect_text)
-
-			# When model has successfully run, will print prediction
-			# You can use a dictionary or similar structure to make this output
-			# more human interpretable.
-			#st.success("Text Categorized as: {}".format(prediction))
-   
-   
 	if selection == "Recommend":
 		st.info("Prediction with ML Models")
   
@@ -321,7 +318,12 @@ def main():
 		st.title('View Your Amime Recommendations:')
 		st.sidebar.header('User Input')
 		recommendation_type = st.sidebar.selectbox('Recommendation Type', ['Content-Based', 'Collaborative-Based'])
-		if recommendation_type == 'Collaborative-Based':
+  
+		# Variables to hold the input for recommendations
+		favorite_animes = []
+		
+    	
+		if recommendation_type == 'Content-Based':
 			
 			st.sidebar.subheader('Select Your 3 Favorite Animes')
 			favorite_anime_1 = st.sidebar.selectbox('Favorite Anime 1', anime_data['name'].unique(), key='fav_anime_1')
@@ -329,79 +331,41 @@ def main():
 			favorite_anime_3 = st.sidebar.selectbox('Favorite Anime 3', anime_data['name'].unique(), key='fav_anime_3')
 
 			favorite_animes = [favorite_anime_1, favorite_anime_2, favorite_anime_3]
-
-		if st.sidebar.button('Recommend'):
-			if len(favorite_animes) > 0:
-				recommendations = get_genre_based_recommendations(favorite_animes, anime_data)
-				if not recommendations.empty:
-					st.write('## Genre-Based Recommendations')
-					st.write(recommendations[['name', 'genre', 'rating']])
-				else:
-					st.write('No recommendations found. Please select different animes.')
-			else:
-				st.write('Please select at least one anime.')
-	
-		#st.sidebar.header('User Input')
-		#recommendation_type = st.sidebar.selectbox('Recommif recommendation_type == 'Content-Based':endation Type', ['Content-Based', 'Collaborative-Based'])
-
+   
 		
-			#st.sidebar.subheader('Select Your 3 Favorite Animes')
-			#favorite_anime_1 = st.sidebar.selectbox('Favorite Anime 1', anime_data['name'].unique(), key='fav_anime_1')
-			#favorite_anime_2 = st.sidebar.selectbox('Favorite Anime 2', anime_data['name'].unique(), key='fav_anime_2')
-			#favorite_anime_3 = st.sidebar.selectbox('Favorite Anime 3', anime_data['name'].unique(), key='fav_anime_3')
-			
-			#favorite_animes = [favorite_anime_1, favorite_anime_2, favorite_anime_3]
-			
-			#if len(favorite_animes) > 0:
-				#recommendations = get_content_based_recommendations(favorite_animes, anime_data, tfidf_matrix)
-				#st.write('## Content-Based Recommendations')
-				#st.write(recommendations[['name', 'genre', 'rating']])
-			#else:
-				#st.write('Please select at least one anime.')
-		#elif recommendation_type == 'Collaborative-Based':
-			#st.sidebar.subheader('Rate Your 3 Favorite Animes')
-			#user_ratings = {}
-			#for i in range(3):
-				#anime = st.sidebar.selectbox(f'Select Anime {i+1}', anime_data['name'].unique(), key=f'anime_{i}')
-				#rating = st.sidebar.slider(f'Rate {anime}', 1, 10, 5, key=f'rating_{i}')
-				#if anime and rating:
-					#user_ratings[anime] = rating
-			#if user_ratings:
-				#recommendations = get_collaborative_recommendations(user_ratings, collaborative_model, anime_data)
-				#st.write('## Collaborative-Based Recommendations')
-				#st.write(recommendations[['name', 'genre', 'rating']])
-			#else:
-				#st.write('Please rate at least one anime.')
-
-		# Combine recommendations
-		#if recommendation_type == 'Combined':
-			#st.sidebar.subheader('Select and Rate Your 3 Favorite Animes')
-			#favorite_anime_1 = st.sidebar.selectbox('Favorite Anime 1', anime_data['name'].unique(), key='fav_anime_1_combined')
-			#favorite_anime_2 = st.sidebar.selectbox('Favorite Anime 2', anime_data['name'].unique(), key='fav_anime_2_combined')
-			#favorite_anime_3 = st.sidebar.selectbox('Favorite Anime 3', anime_data['name'].unique(), key='fav_anime_3_combined')
-			
-			#favorite_animes = [favorite_anime_1, favorite_anime_2, favorite_anime_3]
-			
-			#user_ratings = {}
-			#for i in range(3):
-				#anime = st.sidebar.selectbox(f'Select Anime {i+1}', anime_data['name'].unique(), key=f'anime_combined_{i}')
-				#rating = st.sidebar.slider(f'Rate {anime}', 1, 10, 5, key=f'rating_combined_{i}')
-				#if anime and rating:
-					#user_ratings[anime] = rating
-			#if st.sidebar.button('Recommend'):
-				#if len(favorite_animes) > 0 and user_ratings:
-					#content_based_recommendations = get_content_based_recommendations(favorite_animes, anime_data, tfidf_matrix)
-					#collaborative_recommendations = get_collaborative_recommendations(user_ratings, collaborative_model, anime_data)
-					
-					#combined_recommendations = pd.concat([content_based_recommendations, collaborative_recommendations]).drop_duplicates().head#(10)
-					
-					#st.write('## Combined Recommendations')
-					#st.write(combined_recommendations[['name', 'genre', 'rating']])
-				#else:
-					#st.write('Please select and rate at least one anime.')
-	
-		
+			if st.sidebar.button('Recommend'):
+				if recommendation_type == 'Content-Based' and len(favorite_animes) > 0:
+					recommendations = get_genre_based_recommendations(favorite_animes, anime_data)
+					if not recommendations.empty:
+						st.write('## Genre-Based Recommendations')
+						st.write(recommendations[['name', 'genre', 'rating']])
+					else:
+						st.write('No recommendations found. Please select different animes.')
       
+		elif recommendation_type == 'Collaborative-Based':
+			st.sidebar.subheader('Rate Your 3 Favorite Animes')
+			user_ratings = {}
+			for i in range(3):
+				anime = st.sidebar.selectbox(f'Select Anime {i+1}', anime_data['name'].unique(), key=f'anime_{i}')
+				rating = st.sidebar.slider(f'Rate {anime}', 1, 10, 5, key=f'rating_{i}')
+				if anime and rating:
+					user_ratings[anime] = rating
+      
+			if st.sidebar.button('Recommend'):
+				if len(user_ratings) > 0:
+					recommendations = get_collaborative_recommendations(user_ratings, collaborative_model, anime_data)
+					if not recommendations.empty:
+						st.write('## Collaborative-Based Recommendations')
+						st.write(recommendations[['name', 'genre', 'rating']])
+
+        			
+					else:
+						st.write('No recommendations found. Please select different animes.')
+				else:
+					st.write('Please provide input for recommendations.')
+	
+	
+	
 # Required to let Streamlit instantiate our web app.  
 if __name__ == '__main__':
 	main()
